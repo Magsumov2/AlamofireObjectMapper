@@ -79,11 +79,26 @@ extension DataRequest {
     }
     
     
+    static func determineServerError(_ response: HTTPURLResponse?, _ error: Error?, _ data: Data?) throws {
+        if let code = response?.statusCode, let _ = error, let data = data, data.count > 0 {
+            var stringRepresentation = String(data:data, encoding: String.Encoding.utf8)
+            if let json = (try? JSONSerialization.jsonObject(with: data, options: .mutableContainers)) as? [String:AnyObject] {
+                if let failureReason = json["error_description"] as? String {
+                    stringRepresentation = failureReason
+                }
+            }
+            let errInfo = [NSLocalizedFailureReasonErrorKey: stringRepresentation as Any]
+            let err = NSError(domain: "com.alamofireobjectmapper.error", code: code, userInfo: errInfo)
+            throw AFError.responseSerializationFailed(reason: .decodingFailed(error: err))
+        }
+    }
+    
     /// BaseMappable Object Serializer
     public static func ObjectMapperSerializer<T: BaseMappable>(_ keyPath: String?, mapToObject object: T? = nil, context: MapContext? = nil) -> MappableResponseSerializer<T> {
         
         return MappableResponseSerializer(keyPath, mapToObject: object, context: context, serializeCallback: {
             request, response, data, error in
+            try determineServerError(response, error, data)
 
             let JSONObject = processResponse(request: request, response: response, data: data, keyPath: keyPath)
             
@@ -105,6 +120,7 @@ extension DataRequest {
         
         return MappableResponseSerializer(keyPath, context: context, serializeCallback: {
             request, response, data, error in
+            try determineServerError(response, error, data)
             
             let JSONObject = processResponse(request: request, response: response, data: data, keyPath: keyPath)
             
@@ -145,6 +161,7 @@ extension DataRequest {
         
         return MappableArrayResponseSerializer(keyPath, context: context, serializeCallback: {
             request, response, data, error in
+            try determineServerError(response, error, data)
             
             let JSONObject = processResponse(request: request, response: response, data: data, keyPath: keyPath)
             
@@ -162,6 +179,7 @@ extension DataRequest {
     public static func ObjectMapperImmutableArraySerializer<T: ImmutableMappable>(_ keyPath: String?, context: MapContext? = nil) -> MappableArrayResponseSerializer<T> {
         return MappableArrayResponseSerializer(keyPath, context: context, serializeCallback: {
              request, response, data, error in
+            try determineServerError(response, error, data)
             
             if let JSONObject = processResponse(request: request, response: response, data: data, keyPath: keyPath){
                 
