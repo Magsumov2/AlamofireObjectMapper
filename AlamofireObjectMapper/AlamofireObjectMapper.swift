@@ -32,6 +32,21 @@ import ObjectMapper
 
 extension DataRequest {
     
+    static func determineServerError(_ response: HTTPURLResponse?, _ error: Error?, _ data: Data?) -> NSError? {
+        if let code = response?.statusCode, let _ = error, let data = data, data.count > 0 {
+            var stringRepresentation = String(data:data, encoding: String.Encoding.utf8)
+            if let json = (try? JSONSerialization.jsonObject(with: data, options: .mutableContainers)) as? [String:AnyObject] {
+                if let failureReason = json["error_description"] as? String {
+                    stringRepresentation = failureReason
+                }
+            }
+            let errInfo = [NSLocalizedFailureReasonErrorKey: stringRepresentation as Any]
+            return NSError(domain: "com.alamofireobjectmapper.error", code: code, userInfo: errInfo)
+        }
+        return nil
+    }
+
+    
     enum ErrorCode: Int {
         case noData = 1
         case dataSerializationFailed = 2
@@ -77,6 +92,9 @@ extension DataRequest {
     /// BaseMappable Object Serializer
     public static func ObjectMapperSerializer<T: BaseMappable>(_ keyPath: String?, mapToObject object: T? = nil, context: MapContext? = nil) -> DataResponseSerializer<T> {
         return DataResponseSerializer { request, response, data, error in
+            if let serverError = determineServerError(response, error, data) {
+                return .failure(serverError)
+            }
             if let error = checkResponseForError(request: request, response: response, data: data, error: error){
                 return .failure(error)
             }
@@ -99,6 +117,9 @@ extension DataRequest {
     /// ImmutableMappable Array Serializer
     public static func ObjectMapperImmutableSerializer<T: ImmutableMappable>(_ keyPath: String?, context: MapContext? = nil) -> DataResponseSerializer<T> {
         return DataResponseSerializer { request, response, data, error in
+            if let serverError = determineServerError(response, error, data) {
+                return .failure(serverError)
+            }
             if let error = checkResponseForError(request: request, response: response, data: data, error: error){
                 return .failure(error)
             }
@@ -139,6 +160,9 @@ extension DataRequest {
     /// BaseMappable Array Serializer
     public static func ObjectMapperArraySerializer<T: BaseMappable>(_ keyPath: String?, context: MapContext? = nil) -> DataResponseSerializer<[T]> {
         return DataResponseSerializer { request, response, data, error in
+            if let serverError = determineServerError(response, error, data) {
+                return .failure(serverError)
+            }
             if let error = checkResponseForError(request: request, response: response, data: data, error: error){
                 return .failure(error)
             }
@@ -158,6 +182,9 @@ extension DataRequest {
     /// ImmutableMappable Array Serializer
     public static func ObjectMapperImmutableArraySerializer<T: ImmutableMappable>(_ keyPath: String?, context: MapContext? = nil) -> DataResponseSerializer<[T]> {
         return DataResponseSerializer { request, response, data, error in
+            if let serverError = determineServerError(response, error, data) {
+                return .failure(serverError)
+            }
             if let error = checkResponseForError(request: request, response: response, data: data, error: error){
                 return .failure(error)
             }
